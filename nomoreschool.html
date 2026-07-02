@@ -183,10 +183,11 @@ const BAD=[
 
 //─── STATE ───────────────────────────────────────────────────────────────────
 let gs={phase:'start',score:0,frame:0,highScore:0};
-let holidayTime=0; // frames of holiday left
-const HOLIDAY_START=50*60; // 50s start
-const HOLIDAY_MAX  =180*60;// 3 min max
+let holidayTime=0;
+const HOLIDAY_START=50*60;
+const HOLIDAY_MAX  =180*60;
 let tickTimer=0;
+let teachers=[],teacherSpawnTimer=0;
 
 //─── INPUT ───────────────────────────────────────────────────────────────────
 const K={};
@@ -233,7 +234,7 @@ function getDiff(){
     badChance:Math.min(.50,.28+sec*.004),
     spd:1+sec*.018,
     tier:Math.min(4,Math.floor(sec/25)),
-    label:['🌞 Free Time!','😎 Still Chillin\'','🔥 Things Heat Up!','📚 School Looms...','🚨 ALMOST BACK!'][Math.min(4,Math.floor(sec/25))],
+    label:['🌞 Free Time!','😎 Still Chillin\'','👩‍🏫 Teacher Alert!','📚 School Looms...','🚨 ALMOST BACK!'][Math.min(4,Math.floor(sec/25))],
     labelCol:['#FFD700','#88FF88','#FF9900','#FF5555','#FF0000'][Math.min(4,Math.floor(sec/25))],
   };
 }
@@ -243,7 +244,7 @@ function startGame(){
   gs={phase:'playing',score:0,frame:0,highScore:gs.highScore};
   holidayTime=HOLIDAY_START;
   tickTimer=0;
-  items=[];parts=[];pops=[];
+  items=[];parts=[];pops=[];teachers=[];teacherSpawnTimer=0;
   resetPlayer();
 }
 
@@ -342,6 +343,8 @@ function update(){
     pops[i].y-=1.5;pops[i].life-=.018;
     if(pops[i].life<=0)pops.splice(i,1);
   }
+
+  updateTeachers(diff);
 }
 
 function burst(x,y,col,n){
@@ -349,6 +352,240 @@ function burst(x,y,col,n){
     const a=(Math.PI*2*i/n)+Math.random()*.4,s=2+Math.random()*4;
     parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,col,r:3+Math.random()*5});
   }
+}
+
+//─── TEACHER ─────────────────────────────────────────────────────────────────
+function sfxTeacherAppear(){
+  // Low ominous horn + descending notes
+  if(!aC)return;
+  beep(120,.4,'sawtooth',.10);
+  beep(180,.3,'sawtooth',.08,.15);
+  [440,392,349,330].forEach((f,i)=>beep(f,.18,'triangle',.10,i*.12+.1));
+}
+
+function spawnTeacher(diff){
+  const fromLeft=Math.random()>.5;
+  const spd=(1.6+diff.tier*.38)*(fromLeft?1:-1);
+  sfxTeacherAppear();
+  teachers.push({
+    x:fromLeft?-90:W+90,
+    vx:spd,
+    faceR:fromLeft,
+    walkP:0,
+    hitT:0,
+    warnT:110,     // warning frames before stepping onto screen
+    active:false,
+    fromLeft,
+  });
+}
+
+function updateTeachers(diff){
+  // Spawn logic — teachers start at tier 2 (≈50s survived)
+  if(diff.tier>=2){
+    const interval=Math.max(720,1500-(diff.tier-2)*390);
+    const maxT=diff.tier>=4?2:1;
+    teacherSpawnTimer++;
+    if(teacherSpawnTimer>=interval&&teachers.length<maxT){
+      spawnTeacher(diff);
+      teacherSpawnTimer=0;
+    }
+  }
+
+  for(let i=teachers.length-1;i>=0;i--){
+    const t=teachers[i];
+
+    // Warning countdown — teacher not on screen yet
+    if(t.warnT>0){t.warnT--;continue;}
+
+    t.active=true;
+    t.x+=t.vx;
+    t.walkP+=.17;
+    if(t.hitT>0)t.hitT--;
+
+    // Collision with player (teacher is ~50px wide, ~108px tall, feet at GY)
+    if(t.hitT===0){
+      const pCx=p.x+p.w/2, pCy=p.y+p.h/2;
+      const tCy=GY-54;  // teacher vertical centre
+      if(Math.abs(pCx-t.x)<44&&Math.abs(pCy-tCy)<58){
+        holidayTime=Math.max(0,holidayTime-15*60);
+        t.hitT=160;
+        p.badHitT=55;
+        sfxBad();
+        burst(t.x,GY-60,'#FF2200',14);
+        pops.push({x:t.x,y:GY-130,life:2.2,text:'TEACHER! -15s 😱',col:'#FF2222',big:true});
+      }
+    }
+
+    // Remove once fully off screen
+    if((t.fromLeft&&t.x>W+110)||(!t.fromLeft&&t.x<-110))teachers.splice(i,1);
+  }
+}
+
+function drawTeacherWarning(t){
+  // Flashing edge indicator during the warnT countdown
+  if(Math.floor(Date.now()/180)%2===0)return;
+  const edge=t.fromLeft?0:W;
+  const dir=t.fromLeft?1:-1;
+  ctx.save();
+  ctx.translate(edge,GY-90);
+
+  // Red warning panel
+  ctx.fillStyle='rgba(220,30,30,.88)';
+  rrect(t.fromLeft?0:-160,-28,160,56,8);ctx.fill();
+
+  ctx.textAlign=t.fromLeft?'left':'right';
+  const ox=t.fromLeft?10:-10;
+  ctx.fillStyle='#FFD700';ctx.font='bold 15px Arial Black';
+  ctx.fillText('⚠️ TEACHER!',ox,-6);
+  ctx.fillStyle='white';ctx.font='12px Arial';
+  ctx.fillText(t.fromLeft?'→ avoid!':'← avoid!',ox,16);
+  ctx.restore();
+}
+
+function drawTeacher(t){
+  const sk='#FDBCB4',skD='#C68642';
+  const walk=Math.sin(t.walkP);
+  const legSw=walk*.25;
+  const flip=t.faceR?1:-1;
+  const isHit=t.hitT>100;
+
+  ctx.save();
+  ctx.translate(t.x,GY);
+  ctx.scale(flip,1);
+
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,.22)';
+  ctx.beginPath();ctx.ellipse(0,2,26,5,0,0,Math.PI*2);ctx.fill();
+
+  // Black formal shoes
+  ctx.fillStyle='#1A1A1A';
+  ctx.save();ctx.translate(-10,-28);ctx.rotate(legSw);
+  rrect(-8,26,18,8,3);ctx.fill();ctx.restore();
+  ctx.save();ctx.translate(10,-28);ctx.rotate(-legSw);
+  rrect(-10,26,18,8,3);ctx.fill();ctx.restore();
+
+  // Dark navy trousers
+  ctx.save();ctx.translate(-10,-28);ctx.rotate(legSw);
+  frrect(-6,0,12,28,2,'#1A237E','#0D1757',1.5);ctx.restore();
+  ctx.save();ctx.translate(10,-28);ctx.rotate(-legSw);
+  frrect(-6,0,12,28,2,'#1A237E','#0D1757',1.5);ctx.restore();
+
+  // Navy jacket body
+  const jg=ctx.createLinearGradient(-16,-66,16,-28);
+  jg.addColorStop(0,'#283593');jg.addColorStop(1,'#1A237E');
+  rrect(-16,-66,32,38,4);ctx.fillStyle=jg;ctx.fill();
+  ctx.strokeStyle='#111D4A';ctx.lineWidth=1.5;ctx.stroke();
+
+  // White shirt collar
+  ctx.fillStyle='#FFFFFF';
+  ctx.beginPath();ctx.moveTo(-5,-66);ctx.lineTo(0,-58);ctx.lineTo(5,-66);ctx.fill();
+
+  // Red tie
+  ctx.fillStyle='#B71C1C';
+  ctx.beginPath();ctx.moveTo(-3,-58);ctx.lineTo(3,-58);
+  ctx.lineTo(2,-38);ctx.lineTo(0,-34);ctx.lineTo(-2,-38);ctx.closePath();ctx.fill();
+
+  // Left arm — natural swing
+  ctx.save();ctx.translate(-17,-54);ctx.rotate(-0.1+legSw*.4);
+  rrect(-5,0,10,24,3);ctx.fillStyle='#283593';ctx.fill();
+  ctx.strokeStyle='#1A237E';ctx.lineWidth=1;ctx.stroke();
+  ctx.beginPath();ctx.arc(0,25,5,0,Math.PI*2);
+  ctx.fillStyle=sk;ctx.fill();ctx.strokeStyle=skD;ctx.stroke();
+  ctx.restore();
+
+  // Right arm — extended forward, thrusting homework at you
+  ctx.save();ctx.translate(17,-52);ctx.rotate(-0.58);
+  rrect(-5,0,10,24,3);ctx.fillStyle='#283593';ctx.fill();
+  ctx.strokeStyle='#1A237E';ctx.lineWidth=1;ctx.stroke();
+  ctx.beginPath();ctx.arc(0,24,5,0,Math.PI*2);
+  ctx.fillStyle=sk;ctx.fill();ctx.strokeStyle=skD;ctx.stroke();
+  // Stack of homework papers at end of arm
+  ctx.save();ctx.translate(0,17);ctx.rotate(.48);
+  for(let pi=2;pi>=0;pi--){
+    ctx.fillStyle=['#FFF9C4','#FFFDE7','#FFFFFF'][pi];
+    ctx.strokeStyle='#BDBDBD';ctx.lineWidth=1;
+    rrect(-11+pi,-4+pi,22,16,1);ctx.fill();ctx.stroke();
+  }
+  // "HW" label + ruled lines
+  ctx.fillStyle='#1565C0';ctx.font='bold 5px Arial';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('HW',0,1);
+  ctx.strokeStyle='rgba(130,130,130,.7)';ctx.lineWidth=.8;
+  for(let li=0;li<3;li++){ctx.beginPath();ctx.moveTo(-7,4+li*3);ctx.lineTo(7,4+li*3);ctx.stroke();}
+  ctx.restore();
+  ctx.restore();
+
+  // Neck
+  rrect(-5,-70,10,6,2);ctx.fillStyle=sk;ctx.fill();ctx.strokeStyle=skD;ctx.lineWidth=1.5;ctx.stroke();
+
+  // Head
+  const hg=ctx.createRadialGradient(-4,-85,2,0,-83,20);
+  hg.addColorStop(0,'#FFE0C0');hg.addColorStop(1,'#C68642');
+  rrect(-17,-102,34,33,7);ctx.fillStyle=hg;ctx.fill();ctx.strokeStyle=skD;ctx.lineWidth=1.5;ctx.stroke();
+
+  // Short grey hair, side parted
+  ctx.fillStyle='#757575';
+  ctx.beginPath();ctx.arc(0,-100,17,Math.PI,0);ctx.fill();
+  ctx.fillRect(-17,-104,34,8);
+  ctx.strokeStyle='rgba(200,200,200,.4)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(-2,-104);ctx.lineTo(-2,-98);ctx.stroke();
+
+  // ANGRY brows — thick V angled sharply down toward nose
+  ctx.strokeStyle='#3E2723';ctx.lineWidth=4;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(-15,-90);ctx.lineTo(-5,-86);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(15,-90);ctx.lineTo(5,-86);ctx.stroke();
+
+  // Rectangular dark glasses
+  ctx.strokeStyle='#1A1A1A';ctx.lineWidth=2;ctx.lineCap='square';
+  ctx.strokeRect(-14,-88,10,8);
+  ctx.strokeRect(4,-88,10,8);
+  ctx.beginPath();ctx.moveTo(-4,-84);ctx.lineTo(4,-84);ctx.stroke();   // bridge
+  ctx.beginPath();ctx.moveTo(-14,-84);ctx.lineTo(-19,-84);ctx.stroke();// left temple
+  ctx.beginPath();ctx.moveTo(14,-84);ctx.lineTo(19,-84);ctx.stroke();  // right temple
+  // Lens tint
+  ctx.fillStyle='rgba(0,50,100,.18)';
+  ctx.fillRect(-14,-88,10,8);ctx.fillRect(4,-88,10,8);
+
+  // Cold eyes behind lenses
+  ctx.fillStyle='#111';
+  ctx.beginPath();ctx.arc(-9,-84,2.5,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(9,-84,2.5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.5)';
+  ctx.beginPath();ctx.arc(-7.5,-85.5,1,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(10.5,-85.5,1,0,Math.PI*2);ctx.fill();
+
+  // Stern frown
+  ctx.strokeStyle='#3E2723';ctx.lineWidth=2.5;ctx.lineCap='round';
+  ctx.beginPath();ctx.arc(0,-67,8,Math.PI+.38,-.38);ctx.stroke();
+
+  // Animated anger squiggles above head
+  if(!isHit){
+    const pt=Date.now()/200;
+    ctx.lineCap='round';ctx.lineWidth=2;
+    for(let ai=0;ai<3;ai++){
+      const ax=18+ai*7,ay=-110+Math.sin(pt+ai*1.4)*3;
+      ctx.globalAlpha=.5+Math.sin(pt+ai)*.35;
+      ctx.strokeStyle=ai%2===0?'#FF5722':'#FFB300';
+      ctx.beginPath();
+      ctx.moveTo(ax,ay);ctx.lineTo(ax+3,ay-3);ctx.lineTo(ax+1,ay-7);ctx.lineTo(ax+4,ay-10);
+      ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+  }
+
+  // Red flash on collision
+  if(isHit){
+    ctx.fillStyle=`rgba(255,40,40,${(t.hitT-100)/60*.45})`;
+    ctx.beginPath();ctx.arc(0,-54,54,0,Math.PI*2);ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+function drawTeachers(){
+  teachers.forEach(t=>{
+    if(t.active)drawTeacher(t);
+    else drawTeacherWarning(t);
+  });
 }
 
 //─── DRAW: BACKGROUND ────────────────────────────────────────────────────────
@@ -752,7 +989,9 @@ function drawStart(){
   ctx.font='28px Arial';ctx.fillText('📚 🎒 📝 ✏️ 📏 🔢 📐 📖',W/2,328);
 
   ctx.fillStyle='#FFD700';ctx.font='bold 14px Arial Black';
-  ctx.fillText('🌟 Super Star = +15 seconds of holiday!',W/2,368);
+  ctx.fillText('🌟 Super Star = +15 seconds of holiday!',W/2,358);
+  ctx.fillStyle='#FF8888';ctx.font='bold 13px Arial Black';
+  ctx.fillText('👩‍🏫 Later: angry TEACHER walks across — JUMP or DODGE! -15s if caught!',W/2,382);
 
   ctx.fillStyle='#87CEEB';ctx.font='14px Arial';
   ctx.fillText('← → / A D to move  ·  ↑ / Space to jump',W/2,396);
@@ -812,7 +1051,7 @@ function loop(){
   ctx.clearRect(0,0,W,H);
   drawBG();
   if(gs.phase==='playing'){
-    drawItems();drawBoy();drawParts();drawPops();drawHUD();
+    drawItems();drawBoy();drawTeachers();drawParts();drawPops();drawHUD();
   } else if(gs.phase==='start'){
     drawBoy();drawStart();
   } else {
