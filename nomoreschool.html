@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>NoMoreSchool!</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -9,19 +11,66 @@ body{
   background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   min-height:100vh;font-family:'Arial Black',Arial,sans-serif;
+  overflow:hidden;
 }
 h1{
-  font-size:30px;color:#FFD700;letter-spacing:4px;margin-bottom:10px;
+  font-size:clamp(16px,4vw,30px);color:#FFD700;letter-spacing:clamp(1px,1vw,4px);margin-bottom:6px;
   text-shadow:3px 3px 0 #FF6600,6px 6px 0 #000,0 0 30px rgba(255,215,0,.5);
+  text-align:center;padding:0 8px;
 }
-canvas{display:block;border:5px solid #FF6600;border-radius:8px;box-shadow:0 0 60px rgba(255,150,0,.4)}
-footer{color:#666;margin-top:8px;font-size:12px;text-align:center}
+.game-wrap{
+  position:relative;width:100%;max-width:920px;
+  padding:0 4px;
+}
+canvas{
+  display:block;width:100%;height:auto;
+  border:3px solid #FF6600;border-radius:8px;
+  box-shadow:0 0 40px rgba(255,150,0,.4);
+  touch-action:none;
+}
+footer{color:#555;margin-top:4px;font-size:11px;text-align:center;display:none}
+@media(min-width:600px){footer{display:block;color:#666;font-size:12px}}
+
+/* Touch controls */
+.touch-controls{
+  position:absolute;bottom:3%;left:0;right:0;
+  display:flex;justify-content:space-between;
+  padding:0 3%;pointer-events:none;
+}
+.t-left{display:flex;gap:6px;pointer-events:all;}
+.t-right{pointer-events:all;}
+.tbtn{
+  width:clamp(52px,13vw,72px);height:clamp(52px,13vw,72px);
+  border-radius:50%;
+  background:rgba(255,255,255,.14);
+  border:2px solid rgba(255,255,255,.35);
+  color:rgba(255,255,255,.9);
+  font-size:clamp(20px,5vw,28px);
+  display:flex;align-items:center;justify-content:center;
+  user-select:none;-webkit-user-select:none;
+  touch-action:none;cursor:pointer;
+  backdrop-filter:blur(4px);
+  transition:background .1s;
+}
+.tbtn:active,.tbtn.pressed{background:rgba(255,200,50,.35);}
+@media(min-width:800px){.touch-controls{display:none}}
 </style>
 </head>
 <body>
 <h1>☀️ NO MORE SCHOOL! ☀️</h1>
-<canvas id="c" width="920" height="600"></canvas>
-<footer>← → / A D move &nbsp;·&nbsp; ↑ / Space jump &nbsp;·&nbsp; Catch fun stuff to extend your holiday! &nbsp;·&nbsp; Dodge school stuff!</footer>
+<div class="game-wrap">
+  <canvas id="c" width="920" height="600"></canvas>
+  <div class="touch-controls">
+    <div class="t-left">
+      <div class="tbtn" id="btn-left">◀</div>
+      <div class="tbtn" id="btn-right">▶</div>
+    </div>
+    <div class="t-right">
+      <div class="tbtn" id="btn-jump">▲</div>
+    </div>
+  </div>
+</div>
+<footer>← → / A D move &nbsp;·&nbsp; ↑ / Space jump &nbsp;·&nbsp; Catch fun stuff to extend your holiday!</footer>
 <script>
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
 const W=920,H=600,GY=H-75;
@@ -348,7 +397,7 @@ function drawBG(){
   // Trees
   trees.forEach(tr=>{
     // Trunk
-    frrect(tr.x-9,GY-48,18,48,'#6D4C1A','#3E2723',1.5);
+    frrect(tr.x-9,GY-48,18,48,2,'#6D4C1A','#3E2723',1.5);
     // Canopy
     ctx.fillStyle=tr.c;
     ctx.beginPath();ctx.arc(tr.x,GY-90,38,0,Math.PI*2);ctx.fill();
@@ -423,22 +472,22 @@ function drawBoy(){
   ctx.save();ctx.translate(-10,-26);ctx.rotate(legSwing);
   // Left shoe
   ctx.fillStyle='#FFFFFF';ctx.strokeStyle='#CCC';ctx.lineWidth=1.5;
-  ctx.beginPath();ctx.roundRect(-8,26,16,9,4);ctx.fill();ctx.stroke();
+  rrect(-8,26,16,9,4);ctx.fill();ctx.stroke();
   ctx.fillStyle='#FF5252';ctx.fillRect(-7,26,15,3);
   ctx.restore();
   ctx.save();ctx.translate(10,-26);ctx.rotate(-legSwing);
   ctx.fillStyle='#FFFFFF';ctx.strokeStyle='#CCC';ctx.lineWidth=1.5;
-  ctx.beginPath();ctx.roundRect(-8,26,16,9,4);ctx.fill();ctx.stroke();
+  rrect(-8,26,16,9,4);ctx.fill();ctx.stroke();
   ctx.fillStyle='#FF5252';ctx.fillRect(-7,26,15,3);
   ctx.restore();
 
   // Legs (shorts)
   ctx.save();ctx.translate(-10,-26);ctx.rotate(legSwing);
-  frrect(-6,0,12,28,'#1565C0','#0D47A1',1.5);ctx.restore();
+  frrect(-6,0,12,28,2,'#1565C0','#0D47A1',1.5);ctx.restore();
   ctx.save();ctx.translate(10,-26);ctx.rotate(-legSwing);
-  frrect(-6,0,12,28,'#1565C0','#0D47A1',1.5);ctx.restore();
+  frrect(-6,0,12,28,2,'#1565C0','#0D47A1',1.5);ctx.restore();
   // Shorts cuff
-  frrect(-14,-28,28,6,'#1976D2','#1565C0',1);
+  frrect(-14,-28,28,6,2,'#1976D2','#1565C0',1);
 
   // Torso (t-shirt)
   const shirtCol=badHit?'#CC2222':'#FF6B35';
@@ -506,7 +555,7 @@ function drawBoy(){
     // Wavy scared
     ctx.strokeStyle='#2C1A00';ctx.lineWidth=2;
     [[-7],[6]].forEach(([ex])=>{
-      ctx.beginPath();ctx.moveTo(ex-3,-79);ctx.lineTo(ex,,-76);ctx.lineTo(ex+3,-79);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(ex-3,-79);ctx.lineTo(ex,-76);ctx.lineTo(ex+3,-79);ctx.stroke();
     });
   } else {
     // Normal eyes
@@ -633,7 +682,7 @@ function drawHUD(){
   ctx.fillStyle='rgba(0,0,0,.5)';rrect(barX,34,barW,18,9);ctx.fill();
   // Bar fill
   const ratio=holidayTime/HOLIDAY_MAX;
-  const barCol=lowTime?`rgba(255,${Math.floor(50+Math.sin(Date.now()/150)*50},50,1)`:
+  const barCol=lowTime?`rgba(255,${Math.floor(50+Math.sin(Date.now()/150)*50)},50,1)`:
                ratio<.35?'#FF9800':ratio<.65?'#8BC34A':'#4CAF50';
   ctx.fillStyle=barCol;
   if(ratio>0.005){rrect(barX,34,barW*ratio,18,9);ctx.fill();}
@@ -644,7 +693,7 @@ function drawHUD(){
   // "HOLIDAY TIME" label
   ctx.save();ctx.translate(W/2,24);ctx.scale(pulse,pulse);
   ctx.textAlign='center';
-  ctx.fillStyle=lowTime?`rgba(255,${Math.floor(100+Math.sin(Date.now()/150)*80},50,1)`:'#FFD700';
+  ctx.fillStyle=lowTime?`rgba(255,${Math.floor(100+Math.sin(Date.now()/150)*80)},50,1)`:'#FFD700';
   ctx.font='bold 13px Arial Black';
   ctx.fillText(lowTime?'⚠️ HOLIDAY ENDING! ⚠️':'☀️ HOLIDAY TIME',0,0);
   ctx.restore();
@@ -706,7 +755,9 @@ function drawStart(){
   ctx.fillText('🌟 Super Star = +15 seconds of holiday!',W/2,368);
 
   ctx.fillStyle='#87CEEB';ctx.font='14px Arial';
-  ctx.fillText('← → / A D to move  ·  ↑ / Space to jump',W/2,404);
+  ctx.fillText('← → / A D to move  ·  ↑ / Space to jump',W/2,396);
+  ctx.fillStyle='rgba(150,220,255,.7)';ctx.font='13px Arial';
+  ctx.fillText('📱 Mobile: use ◀ ▶ ▲ buttons or tap screen to start',W/2,418);
 
   if(gs.highScore>0){ctx.fillStyle='rgba(255,215,0,.8)';ctx.font='bold 15px Arial';ctx.fillText('🏆 Best Score: '+gs.highScore,W/2,432);}
 
@@ -714,7 +765,7 @@ function drawStart(){
   ctx.fillStyle=blink?'#FFD700':'rgba(255,215,0,.35)';
   ctx.font='bold 28px Arial Black';
   ctx.shadowColor='#FF6600';ctx.shadowBlur=blink?12:0;
-  ctx.fillText('✨  Press SPACE to Start!  ✨',W/2,478);
+  ctx.fillText('✨  Tap Screen or Press SPACE to Start!  ✨',W/2,478);
   ctx.shadowBlur=0;
 }
 
@@ -752,7 +803,7 @@ function drawGameOver(){
 
   const blink=Math.sin(Date.now()/350)>0;
   ctx.fillStyle=blink?'#FFD700':'rgba(255,215,0,.35)';
-  ctx.font='bold 24px Arial Black';ctx.fillText('Press SPACE to Try Again!',W/2,420);
+  ctx.font='bold 24px Arial Black';ctx.fillText('Tap Screen or Press SPACE to Try Again!',W/2,420);
 }
 
 //─── MAIN LOOP ───────────────────────────────────────────────────────────────
@@ -769,6 +820,34 @@ function loop(){
   }
   requestAnimationFrame(loop);
 }
+//─── TOUCH CONTROLS ──────────────────────────────────────────────────────────
+(function setupTouch(){
+  const map={
+    'btn-left' :'ArrowLeft',
+    'btn-right':'ArrowRight',
+    'btn-jump' :'Space',
+  };
+  Object.entries(map).forEach(([id,code])=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    el.addEventListener('touchstart',e=>{
+      e.preventDefault();
+      K[code]=true;el.classList.add('pressed');
+      ensureAudio();
+      if((code==='Space')&&gs.phase!=='playing')startGame();
+    },{passive:false});
+    el.addEventListener('touchend',e=>{
+      e.preventDefault();K[code]=false;el.classList.remove('pressed');
+    },{passive:false});
+    el.addEventListener('touchcancel',()=>{K[code]=false;el.classList.remove('pressed');});
+  });
+  // Tap canvas itself to start
+  document.getElementById('c').addEventListener('touchstart',e=>{
+    ensureAudio();
+    if(gs.phase!=='playing'){e.preventDefault();startGame();}
+  },{passive:false});
+})();
+
 resetPlayer();loop();
 </script>
 </body>
